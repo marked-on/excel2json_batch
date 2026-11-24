@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Konverter Excel ke JSON — Cepat, Aman & Lokal</title>
+    
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- SheetJS (xlsx) CDN untuk parsing Excel yang handal -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    
+    <!-- JSZip CDN untuk mengemas banyak file JSON menjadi .ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar untuk tampilan developer tool yang rapi */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 6px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* JSON Syntax Highlighting */
+        .json-key { color: #0369a1; font-weight: 500; }
+        .json-string { color: #15803d; }
+        .json-number { color: #b45309; }
+        .json-boolean { color: #7e22ce; font-weight: 600; }
+        .json-null { color: #94a3b8; font-style: italic; }
+
+        /* Smooth transition for dropzone */
+        .dropzone-active {
+            border-color: #4f46e5 !important;
+            background-color: #eef2ff !important;
+            transform: scale(1.01);
+        }
+
+        /* Active queue item styling */
+        .queue-item-active {
+            border-color: #6366f1 !important;
+            background-color: #eef2ff !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-indigo-100 selection:text-indigo-800">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-200">
+                    <i data-lucide="file-json-2" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-900 tracking-tight leading-none">Konverter Excel ke JSON</h1>
+                    <p class="text-xs text-slate-500 mt-1">Utilitas Konversi Data Cepat & Presisi</p>
+                </div>
+            </div>
+
+            <!-- Security Badge -->
+            <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+                <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
+                <span>100% Diproses Lokal di Browser</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+        <!-- Toast / Notification Banner (Hidden by default) -->
+        <div id="alertBox" class="hidden rounded-xl p-4 border flex items-start justify-between gap-3 transition-all duration-300 shadow-sm" role="alert">
+            <div class="flex items-start gap-3">
+                <i id="alertIcon" data-lucide="alert-circle" class="w-5 h-5 mt-0.5 shrink-0"></i>
+                <div>
+                    <h3 id="alertTitle" class="text-sm font-semibold">Judul Notifikasi</h3>
+                    <p id="alertMessage" class="text-xs mt-0.5 opacity-90">Pesan detail di sini.</p>
+                </div>
+            </div>
+            <button onclick="hideAlert()" class="p-1 rounded-lg hover:bg-black/5 transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- Upload Section (Visible when no file is loaded) -->
+        <section id="uploadSection" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-10 transition-all">
+            <div id="dropZone" 
+                 class="border-2 border-dashed border-slate-300 rounded-xl p-8 sm:p-14 text-center cursor-pointer hover:border-indigo-500 hover:bg-slate-50/80 transition-all duration-200 group flex flex-col items-center justify-center">
+                
+                <input type="file" id="fileInput" multiple class="hidden" accept=".xlsx, .xls, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel, text/csv" />
+                
+                <div class="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:bg-indigo-100 transition-transform duration-200">
+                    <i data-lucide="files" class="w-8 h-8"></i>
+                </div>
+                
+                <h2 class="text-lg sm:text-xl font-semibold text-slate-900">
+                    Seret & lepas satu atau banyak file Excel di sini
+                </h2>
+                <p class="text-sm text-slate-500 mt-1.5 max-w-md">
+                    Atau <span class="text-indigo-600 font-medium underline underline-offset-2">klik untuk memilih beberapa file sekaligus</span>. Mendukung format <span class="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">.xlsx</span>, <span class="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">.xls</span>, dan <span class="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">.csv</span>.
+                </p>
+
+                <div class="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400">
+                    <span class="flex items-center gap-1.5"><i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500"></i> Mendukung Batch Conversion</span>
+                    <span class="hidden sm:inline">•</span>
+                    <span class="flex items-center gap-1.5"><i data-lucide="layers" class="w-3.5 h-3.5 text-indigo-500"></i> Multi-sheet & Ekspor ZIP</span>
+                </div>
+            </div>
+
+            <!-- Sample Data Quick Try Button -->
+            <div class="mt-5 pt-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+                <p>Ingin langsung mencoba mode konversi massal (Batch)?</p>
+                <button id="loadSampleBtn" type="button" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-600"></i>
+                    Coba dengan Data Contoh (2 File)
+                </button>
+            </div>
+        </section>
+
+        <!-- Workspace Section (Hidden until at least 1 file is loaded) -->
+        <section id="workspaceSection" class="hidden space-y-6">
+            
+            <!-- File Queue & Batch Management Card -->
+            <div id="queueDropZone" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6 transition-all">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                    <div>
+                        <div class="flex items-center gap-2.5">
+                            <h3 class="text-base font-bold text-slate-900">Antrean File Konversi</h3>
+                            <span id="queueCountBadge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                0 File
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1">Klik salah satu file untuk melihat pratinjau, atau seret file tambahan ke area ini.</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button id="addMoreBtn" type="button" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold transition-all">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                            <span>Tambah File</span>
+                        </button>
+                        <button id="clearAllBtn" type="button" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-slate-600 text-xs font-medium transition-all">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            <span>Hapus Semua</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- File Queue List Container -->
+                <div id="fileQueueList" class="mt-4 space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+                    <!-- Queue items populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Global Parsing & Batch Export Settings Card -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6 space-y-5">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4 text-indigo-600"></i>
+                        <span>Pengaturan Global & Mode Output Batch</span>
+                    </h3>
+                </div>
+
+                <!-- Row 1: Parsing Toggles -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                    <!-- Toggle 1: First Row as Header -->
+                    <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 cursor-pointer transition-colors">
+                        <div class="pr-2">
+                            <span class="block text-xs font-semibold text-slate-800">Baris Pertama = Header</span>
+                            <span class="block text-[11px] text-slate-500">Gunakan sebagai key JSON</span>
+                        </div>
+                        <input type="checkbox" id="optHeader" checked class="sr-only peer">
+                        <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 relative shrink-0"></div>
+                    </label>
+
+                    <!-- Toggle 2: Pretty Print JSON -->
+                    <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 cursor-pointer transition-colors">
+                        <div class="pr-2">
+                            <span class="block text-xs font-semibold text-slate-800">Format Rapi (Pretty)</span>
+                            <span class="block text-[11px] text-slate-500">Indentasi 2 spasi vs Minify</span>
+                        </div>
+                        <input type="checkbox" id="optPretty" checked class="sr-only peer">
+                        <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 relative shrink-0"></div>
+                    </label>
+
+                    <!-- Toggle 3: Include Empty Cells -->
+                    <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 cursor-pointer transition-colors">
+                        <div class="pr-2">
+                            <span class="block text-xs font-semibold text-slate-800">Sertakan Sel Kosong</span>
+                            <span class="block text-[11px] text-slate-500">Isi dengan nilai null</span>
+                        </div>
+                        <input type="checkbox" id="optEmptyCells" checked class="sr-only peer">
+                        <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-500/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 relative shrink-0"></div>
+                    </label>
+                </div>
+
+                <!-- Row 2: Batch Export Mode & Mass Download Actions -->
+                <div class="pt-4 border-t border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <label for="batchModeSelect" class="text-xs font-semibold text-slate-700 shrink-0">Mode Pratinjau & Gabungan:</label>
+                        <div class="relative min-w-[270px]">
+                            <select id="batchModeSelect" class="w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 hover:bg-white focus:bg-white px-3.5 py-2 pr-9 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer">
+                                <option value="individual">Per File Terpilih (Individual)</option>
+                                <option value="merged_object">Gabungkan Semua File (Objek per Nama File)</option>
+                                <option value="merged_array">Gabungkan Semua File (Satu Array Datar)</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                        </div>
+                    </div>
+
+                    <!-- Batch Download Buttons -->
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        <button id="downloadMergedBtn" type="button" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 active:scale-[0.98] text-indigo-700 text-xs font-semibold transition-all">
+                            <i data-lucide="file-plus-2" class="w-3.5 h-3.5"></i>
+                            <span>Unduh Gabungan (.json)</span>
+                        </button>
+
+                        <button id="downloadZipBtn" type="button" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs font-semibold transition-all shadow-sm shadow-indigo-200">
+                            <i data-lucide="archive" class="w-3.5 h-3.5"></i>
+                            <span>Unduh Semua (.ZIP)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Output & Preview Card -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                
+                <!-- Active Preview Context Banner -->
+                <div class="px-4 sm:px-6 py-2.5 bg-indigo-50/70 border-b border-indigo-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div class="flex items-center gap-2 text-indigo-900 font-medium">
+                        <i data-lucide="eye" class="w-3.5 h-3.5 text-indigo-600"></i>
+                        <span>Pratinjau Aktif:</span>
+                        <span id="activePreviewLabel" class="font-bold text-indigo-700">-</span>
+                    </div>
+                    <span id="activePreviewMeta" class="text-indigo-700/80 font-mono text-[11px]">0 baris</span>
+                </div>
+
+                <!-- Toolbar Header -->
+                <div class="px-4 sm:px-6 py-3.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    
+                    <!-- View Tabs -->
+                    <div class="inline-flex p-1 rounded-xl bg-slate-200/70">
+                        <button id="tabJson" type="button" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-sm transition-all">
+                            <i data-lucide="code-2" class="w-3.5 h-3.5 text-indigo-600"></i>
+                            <span>Output JSON</span>
+                        </button>
+                        <button id="tabTable" type="button" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition-all">
+                            <i data-lucide="table" class="w-3.5 h-3.5"></i>
+                            <span>Pratinjau Tabel</span>
+                        </button>
+                    </div>
+
+                    <!-- Output Stats & Export Buttons -->
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        <span id="jsonSizeBadge" class="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-mono text-slate-600">
+                            0 B
+                        </span>
+
+                        <button id="copyBtn" type="button" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 active:scale-[0.98] text-slate-700 text-xs font-semibold transition-all shadow-sm">
+                            <i id="copyIcon" data-lucide="copy" class="w-3.5 h-3.5 text-slate-500"></i>
+                            <span id="copyText">Salin JSON</span>
+                        </button>
+
+                        <button id="downloadSingleBtn" type="button" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white text-xs font-semibold transition-all shadow-sm">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            <span id="downloadSingleLabel">Unduh .json</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- View 1: JSON Code Output -->
+                <div id="jsonViewContainer" class="relative">
+                    <div class="max-h-[520px] overflow-auto p-4 sm:p-6 bg-white">
+                        <pre id="jsonOutput" class="font-mono text-xs sm:text-[13px] leading-relaxed text-slate-800 whitespace-pre-wrap break-words"></pre>
+                    </div>
+                </div>
+
+                <!-- View 2: Quick Table Preview (Hidden by default) -->
+                <div id="tableViewContainer" class="hidden">
+                    <div class="px-4 sm:px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600">
+                        <span id="tablePreviewNotice" class="flex items-center gap-1.5 font-medium">
+                            <i data-lucide="info" class="w-3.5 h-3.5 text-indigo-600"></i>
+                            Menampilkan maksimal 10 baris pertama dari item aktif untuk verifikasi cepat.
+                        </span>
+                    </div>
+                    <div class="max-h-[480px] overflow-auto">
+                        <table id="previewTable" class="w-full text-left border-collapse text-xs">
+                            <thead id="previewTableHead" class="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 sticky top-0">
+                                <!-- Populated dynamically -->
+                            </thead>
+                            <tbody id="previewTableBody" class="divide-y divide-slate-100 text-slate-600">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-auto">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+            <p class="flex items-center gap-1.5">
+                <i data-lucide="lock" class="w-3.5 h-3.5 text-slate-400"></i>
+                Semua proses dilakukan secara lokal di browser Anda. File tidak pernah diunggah ke server.
+            </p>
+            <p class="text-slate-400">Didukung oleh SheetJS & JSZip • HTML, CSS & JavaScript Murni</p>
+        </div>
+    </footer>
+
+    <!-- Application Logic -->
+    <script>
+        // Inisialisasi Ikon Lucide
+        lucide.createIcons();
+
+        // State Aplikasi untuk Batch Conversion
+        const appState = {
+            // Array of { id, fileName, fileSize, workbook, selectedSheet, status, errorMessage, convertedData, jsonString, rowCount }
+            files: [],
+            selectedFileId: null,
+            activeJsonString: '',
+            activeTab: 'json' // 'json' | 'table'
+        };
+
+        // Referensi Elemen DOM
+        const dom = {
+            alertBox: document.getElementById('alertBox'),
+            alertIcon: document.getElementById('alertIcon'),
+            alertTitle: document.getElementById('alertTitle'),
+            alertMessage: document.getElementById('alertMessage'),
+            
+            uploadSection: document.getElementById('uploadSection'),
+            dropZone: document.getElementById('dropZone'),
+            fileInput: document.getElementById('fileInput'),
+            loadSampleBtn: document.getElementById('loadSampleBtn'),
+            
+            workspaceSection: document.getElementById('workspaceSection'),
+            queueDropZone: document.getElementById('queueDropZone'),
+            queueCountBadge: document.getElementById('queueCountBadge'),
+            fileQueueList: document.getElementById('fileQueueList'),
+            addMoreBtn: document.getElementById('addMoreBtn'),
+            clearAllBtn: document.getElementById('clearAllBtn'),
+            
+            optHeader: document.getElementById('optHeader'),
+            optPretty: document.getElementById('optPretty'),
+            optEmptyCells: document.getElementById('optEmptyCells'),
+            batchModeSelect: document.getElementById('batchModeSelect'),
+            
+            downloadMergedBtn: document.getElementById('downloadMergedBtn'),
+            downloadZipBtn: document.getElementById('downloadZipBtn'),
+            
+            activePreviewLabel: document.getElementById('activePreviewLabel'),
+            activePreviewMeta: document.getElementById('activePreviewMeta'),
+            tabJson: document.getElementById('tabJson'),
+            tabTable: document.getElementById('tabTable'),
+            jsonSizeBadge: document.getElementById('jsonSizeBadge'),
+            copyBtn: document.getElementById('copyBtn'),
+            copyIcon: document.getElementById('copyIcon'),
+            copyText: document.getElementById('copyText'),
+            downloadSingleBtn: document.getElementById('downloadSingleBtn'),
+            downloadSingleLabel: document.getElementById('downloadSingleLabel'),
+            
+            jsonViewContainer: document.getElementById('jsonViewContainer'),
+            jsonOutput: document.getElementById('jsonOutput'),
+            tableViewContainer: document.getElementById('tableViewContainer'),
+            tablePreviewNotice: document.getElementById('tablePreviewNotice'),
+            previewTableHead: document.getElementById('previewTableHead'),
+            previewTableBody: document.getElementById('previewTableBody')
+        };
+
+        // --- Utility Functions ---
+
+        function generateId() {
+            return 'file_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+        }
+
+        function formatBytes(bytes, decimals = 1) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        function showAlert(title, message, type = 'error') {
+            dom.alertBox.classList.remove('hidden', 'bg-rose-50', 'border-rose-200', 'text-rose-800', 'bg-amber-50', 'border-amber-200', 'text-amber-800', 'bg-emerald-50', 'border-emerald-200', 'text-emerald-800');
+            
+            if (type === 'error') {
+                dom.alertBox.classList.add('bg-rose-50', 'border-rose-200', 'text-rose-800');
+                dom.alertIcon.setAttribute('data-lucide', 'alert-circle');
+            } else if (type === 'warning') {
+                dom.alertBox.classList.add('bg-amber-50', 'border-amber-200', 'text-amber-800');
+                dom.alertIcon.setAttribute('data-lucide', 'alert-triangle');
+            } else {
+                dom.alertBox.classList.add('bg-emerald-50', 'border-emerald-200', 'text-emerald-800');
+                dom.alertIcon.setAttribute('data-lucide', 'check-circle-2');
+            }
+
+            dom.alertTitle.textContent = title;
+            dom.alertMessage.textContent = message;
+            lucide.createIcons();
+        }
+
+        function hideAlert() {
+            dom.alertBox.classList.add('hidden');
+        }
+
+        function syntaxHighlightJSON(jsonStr) {
+            const escaped = jsonStr
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            return escaped.replace(
+                /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+                function (match) {
+                    let cls = 'json-number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            cls = 'json-key';
+                        } else {
+                            cls = 'json-string';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'json-boolean';
+                    } else if (/null/.test(match)) {
+                        cls = 'json-null';
+                    }
+                    return '<span class="' + cls + '">' + match + '</span>';
+                }
+            );
+        }
+
+        function getCleanOutputFileName(fileItem) {
+            const baseName = fileItem.fileName.replace(/\.[^/.]+$/, '');
+            if (fileItem.selectedSheet === '__ALL__' || fileItem.workbook.SheetNames.length <= 1) {
+                return `${baseName}.json`;
+            }
+            const cleanSheet = fileItem.selectedSheet.replace(/[^a-zA-Z0-9_-]/g, '_');
+            return `${baseName}_${cleanSheet}.json`;
+        }
+
+        // --- Core Multi-File Parsing & Batch Processing ---
+
+        /**
+         * Memproses sekumpulan file (FileList atau Array of File)
+         */
+        async function handleMultipleFiles(fileList) {
+            hideAlert();
+            const filesArray = Array.from(fileList || []);
+            if (filesArray.length === 0) return;
+
+            const validExtensions = ['.xlsx', '.xls', '.csv'];
+            const invalidFiles = [];
+            let firstNewlyAddedId = null;
+
+            for (const file of filesArray) {
+                const fileNameLower = file.name.toLowerCase();
+                const isValid = validExtensions.some(ext => fileNameLower.endsWith(ext));
+
+                if (!isValid) {
+                    invalidFiles.push(file.name);
+                    continue;
+                }
+
+                const fileId = generateId();
+                if (!firstNewlyAddedId) firstNewlyAddedId = fileId;
+
+                const fileEntry = {
+                    id: fileId,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    workbook: null,
+                    selectedSheet: '',
+                    status: 'processing', // 'processing' | 'ready' | 'error'
+                    errorMessage: '',
+                    convertedData: null,
+                    jsonString: '',
+                    rowCount: 0
+                };
+
+                appState.files.push(fileEntry);
+
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const data = new Uint8Array(arrayBuffer);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+
+                    if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+                        throw new Error('File tidak memiliki lembar kerja (sheet) yang valid.');
+                    }
+
+                    fileEntry.workbook = workbook;
+                    // Default ke sheet pertama, atau '__ALL__' jika diinginkan nanti oleh user
+                    fileEntry.selectedSheet = workbook.SheetNames[0];
+                    fileEntry.status = 'ready';
+                } catch (err) {
+                    console.error(`Error parsing ${file.name}:`, err);
+                    fileEntry.status = 'error';
+                    fileEntry.errorMessage = 'File rusak atau terenkripsi.';
+                }
+            }
+
+            if (invalidFiles.length > 0) {
+                showAlert(
+                    'Beberapa File Dilewati',
+                    `Format tidak didukung untuk: ${invalidFiles.join(', ')}. Hanya menerima .xlsx, .xls, dan .csv.`,
+                    'warning'
+                );
+            }
+
+            if (appState.files.length > 0) {
+                if (!appState.selectedFileId || !appState.files.some(f => f.id === appState.selectedFileId)) {
+                    appState.selectedFileId = firstNewlyAddedId || appState.files[0].id;
+                }
+
+                dom.uploadSection.classList.add('hidden');
+                dom.workspaceSection.classList.remove('hidden');
+
+                reprocessAllFiles();
+            }
+        }
+
+        /**
+         * Mengonversi satu item file berdasarkan sheet terpilih dan pengaturan global
+         */
+        function convertSingleFileItem(fileItem) {
+            if (!fileItem.workbook || fileItem.status === 'error') return;
+
+            const useFirstRowAsHeader = dom.optHeader.checked;
+            const isPrettyPrint = dom.optPretty.checked;
+            const includeEmptyCells = dom.optEmptyCells.checked;
+
+            const sheetOptions = {
+                defval: includeEmptyCells ? null : undefined,
+                raw: false
+            };
+
+            if (!useFirstRowAsHeader) {
+                sheetOptions.header = 1;
+            }
+
+            try {
+                if (fileItem.selectedSheet === '__ALL__') {
+                    // Konversi semua sheet menjadi objek { NamaSheet: [rows...] }
+                    const allSheetsObj = {};
+                    let totalRows = 0;
+
+                    fileItem.workbook.SheetNames.forEach(sheetName => {
+                        const ws = fileItem.workbook.Sheets[sheetName];
+                        const rows = XLSX.utils.sheet_to_json(ws, sheetOptions);
+                        allSheetsObj[sheetName] = rows;
+                        totalRows += rows.length;
+                    });
+
+                    fileItem.convertedData = allSheetsObj;
+                    fileItem.rowCount = totalRows;
+                } else {
+                    // Konversi 1 sheet spesifik menjadi array of rows
+                    const ws = fileItem.workbook.Sheets[fileItem.selectedSheet];
+                    const rows = XLSX.utils.sheet_to_json(ws, sheetOptions);
+                    fileItem.convertedData = rows;
+                    fileItem.rowCount = rows.length;
+                }
+
+                fileItem.jsonString = isPrettyPrint
+                    ? JSON.stringify(fileItem.convertedData, null, 2)
+                    : JSON.stringify(fileItem.convertedData);
+                fileItem.status = 'ready';
+            } catch (err) {
+                console.error('Conversion error:', err);
+                fileItem.status = 'error';
+                fileItem.errorMessage = 'Gagal menyusun JSON.';
+            }
+        }
+
+        /**
+         * Memproses ulang seluruh antrean file dan memperbarui UI antrean + pratinjau
+         */
+        function reprocessAllFiles() {
+            appState.files.forEach(item => convertSingleFileItem(item));
+            renderQueueList();
+            updateActivePreview();
+        }
+
+        /**
+         * Menyusun data gabungan dari seluruh file yang berstatus 'ready'
+         */
+        function buildMergedBatchData(mode) {
+            const readyFiles = appState.files.filter(f => f.status === 'ready');
+
+            if (mode === 'merged_array') {
+                // Gabungkan semua baris menjadi satu array datar
+                const flatArray = [];
+                readyFiles.forEach(fileItem => {
+                    if (Array.isArray(fileItem.convertedData)) {
+                        flatArray.push(...fileItem.convertedData);
+                    } else if (fileItem.convertedData && typeof fileItem.convertedData === 'object') {
+                        // Jika file menggunakan mode "__ALL__", gabungkan array dari tiap sheet
+                        Object.values(fileItem.convertedData).forEach(sheetRows => {
+                            if (Array.isArray(sheetRows)) flatArray.push(...sheetRows);
+                        });
+                    }
+                });
+                return flatArray;
+            } else {
+                // mode === 'merged_object': Objek terstruktur per nama file
+                const mergedObj = {};
+                readyFiles.forEach(fileItem => {
+                    const baseKey = fileItem.fileName.replace(/\.[^/.]+$/, '');
+                    // Hindari bentrok key jika ada nama file kembar
+                    let uniqueKey = baseKey;
+                    let counter = 2;
+                    while (Object.prototype.hasOwnProperty.call(mergedObj, uniqueKey)) {
+                        uniqueKey = `${baseKey}_${counter++}`;
+                    }
+                    mergedObj[uniqueKey] = fileItem.convertedData;
+                });
+                return mergedObj;
+            }
+        }
+
+        // --- UI Rendering Functions ---
+
+        /**
+         * Merender daftar antrean file (File Queue)
+         */
+        function renderQueueList() {
+            const totalFiles = appState.files.length;
+            const readyCount = appState.files.filter(f => f.status === 'ready').length;
+            dom.queueCountBadge.textContent = `${readyCount}/${totalFiles} Siap`;
+
+            dom.fileQueueList.innerHTML = '';
+
+            appState.files.forEach(item => {
+                const isSelected = item.id === appState.selectedFileId;
+                const rowEl = document.createElement('div');
+                rowEl.className = `flex flex-col md:flex-row md:items-center justify-between gap-3 p-3.5 rounded-xl border transition-all cursor-pointer ${
+                    isSelected 
+                        ? 'queue-item-active shadow-sm' 
+                        : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
+                }`;
+
+                // Klik pada kartu item untuk memilih file sebagai pratinjau
+                rowEl.addEventListener('click', (e) => {
+                    // Jangan ubah seleksi jika klik berasal dari select atau button di dalam kartu
+                    if (e.target.closest('select') || e.target.closest('button')) return;
+                    appState.selectedFileId = item.id;
+                    if (dom.batchModeSelect.value !== 'individual') {
+                        dom.batchModeSelect.value = 'individual';
+                    }
+                    renderQueueList();
+                    updateActivePreview();
+                });
+
+                // Bagian Kiri: Ikon, Nama File, Ukuran, Status
+                const leftDiv = document.createElement('div');
+                leftDiv.className = 'flex items-center gap-3 min-w-0 flex-1';
+
+                const iconColor = item.status === 'error' 
+                    ? 'bg-rose-50 text-rose-600 border-rose-200' 
+                    : (isSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-emerald-50 text-emerald-600 border-emerald-200');
+
+                leftDiv.innerHTML = `
+                    <div class="w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${iconColor}">
+                        <i data-lucide="${item.status === 'error' ? 'file-warning' : 'file-spreadsheet'}" class="w-4 h-4"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center gap-2">
+                            <p class="text-xs sm:text-sm font-semibold text-slate-900 truncate" title="${item.fileName}">${item.fileName}</p>
+                            <span class="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-600 shrink-0">${formatBytes(item.fileSize)}</span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-0.5 text-[11px]">
+                            ${item.status === 'error' 
+                                ? `<span class="text-rose-600 font-medium">${item.errorMessage}</span>`
+                                : `<span class="text-emerald-700 font-medium flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Selesai (${item.rowCount.toLocaleString('id-ID')} baris)</span>
+                                   <span class="text-slate-300">•</span>
+                                   <span class="text-slate-500">${item.workbook.SheetNames.length} Sheet</span>`
+                            }
+                        </div>
+                    </div>
+                `;
+
+                // Bagian Kanan: Pemilih Sheet, Tombol Unduh Individual, Tombol Hapus
+                const rightDiv = document.createElement('div');
+                rightDiv.className = 'flex items-center gap-2 self-end md:self-center shrink-0';
+
+                if (item.status === 'ready' && item.workbook) {
+                    const sheetSelect = document.createElement('select');
+                    sheetSelect.className = 'rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 max-w-[160px] cursor-pointer';
+                    sheetSelect.title = 'Pilih Sheet untuk file ini';
+
+                    // Opsi Semua Sheet jika sheet > 1
+                    if (item.workbook.SheetNames.length > 1) {
+                        const allOpt = document.createElement('option');
+                        allOpt.value = '__ALL__';
+                        allOpt.textContent = `Semua Sheet (${item.workbook.SheetNames.length})`;
+                        if (item.selectedSheet === '__ALL__') allOpt.selected = true;
+                        sheetSelect.appendChild(allOpt);
+                    }
+
+                    item.workbook.SheetNames.forEach(sName => {
+                        const opt = document.createElement('option');
+                        opt.value = sName;
+                        opt.textContent = sName;
+                        if (item.selectedSheet === sName) opt.selected = true;
+                        sheetSelect.appendChild(opt);
+                    });
+
+                    sheetSelect.addEventListener('change', (e) => {
+                        item.selectedSheet = e.target.value;
+                        convertSingleFileItem(item);
+                        renderQueueList();
+                        updateActivePreview();
+                    });
+
+                    rightDiv.appendChild(sheetSelect);
+
+                    // Tombol Unduh File JSON individual
+                    const dlBtn = document.createElement('button');
+                    dlBtn.type = 'button';
+                    dlBtn.className = 'p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 text-slate-600 transition-colors';
+                    dlBtn.title = `Unduh ${getCleanOutputFileName(item)}`;
+                    dlBtn.innerHTML = '<i data-lucide="download" class="w-4 h-4"></i>';
+                    dlBtn.addEventListener('click', () => downloadSingleFileItem(item));
+                    rightDiv.appendChild(dlBtn);
+                }
+
+                // Tombol Hapus File dari Antrean
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-slate-500 transition-colors';
+                delBtn.title = 'Hapus dari antrean';
+                delBtn.innerHTML = '<i data-lucide="x" class="w-4 h-4"></i>';
+                delBtn.addEventListener('click', () => removeFileFromQueue(item.id));
+                rightDiv.appendChild(delBtn);
+
+                rowEl.appendChild(leftDiv);
+                rowEl.appendChild(rightDiv);
+                dom.fileQueueList.appendChild(rowEl);
+            });
+
+            lucide.createIcons();
+        }
+
+        /**
+         * Memperbarui panel pratinjau JSON dan Tabel sesuai mode output
+         */
+        function updateActivePreview() {
+            const mode = dom.batchModeSelect.value;
+            const isPrettyPrint = dom.optPretty.checked;
+            const useFirstRowAsHeader = dom.optHeader.checked;
+
+            let targetData = null;
+            let jsonStr = '';
+
+            if (mode === 'individual') {
+                const activeItem = appState.files.find(f => f.id === appState.selectedFileId) || appState.files[0];
+                if (!activeItem) return;
+
+                appState.selectedFileId = activeItem.id;
+                dom.activePreviewLabel.textContent = activeItem.fileName;
+                dom.downloadSingleLabel.textContent = `Unduh ${getCleanOutputFileName(activeItem)}`;
+
+                if (activeItem.status === 'error') {
+                    dom.activePreviewMeta.textContent = 'Error';
+                    jsonStr = JSON.stringify({ error: activeItem.errorMessage, file: activeItem.fileName }, null, 2);
+                    targetData = [];
+                } else {
+                    const sheetInfo = activeItem.selectedSheet === '__ALL__' ? 'Semua Sheet' : `Sheet: ${activeItem.selectedSheet}`;
+                    dom.activePreviewMeta.textContent = `${sheetInfo} • ${activeItem.rowCount.toLocaleString('id-ID')} baris`;
+                    targetData = activeItem.convertedData;
+                    jsonStr = activeItem.jsonString;
+                }
+            } else {
+                // Mode Gabungan (merged_object atau merged_array)
+                targetData = buildMergedBatchData(mode);
+                jsonStr = isPrettyPrint ? JSON.stringify(targetData, null, 2) : JSON.stringify(targetData);
+
+                const readyCount = appState.files.filter(f => f.status === 'ready').length;
+                dom.activePreviewLabel.textContent = mode === 'merged_object'
+                    ? `Gabungan ${readyCount} File (Objek Terstruktur)`
+                    : `Gabungan ${readyCount} File (Array Datar)`;
+                dom.activePreviewMeta.textContent = `${readyCount} file digabung`;
+                dom.downloadSingleLabel.textContent = 'Unduh Gabungan (.json)';
+            }
+
+            appState.activeJsonString = jsonStr;
+
+            // Update badge ukuran JSON
+            const jsonByteSize = new Blob([jsonStr]).size;
+            dom.jsonSizeBadge.textContent = formatBytes(jsonByteSize);
+
+            // Render JSON dengan syntax highlighting (batas aman 300KB agar performa mulus)
+            if (jsonStr.length > 300000) {
+                dom.jsonOutput.textContent = jsonStr;
+            } else {
+                dom.jsonOutput.innerHTML = syntaxHighlightJSON(jsonStr);
+            }
+
+            // Siapkan array baris untuk pratinjau tabel
+            let tableRows = [];
+            if (Array.isArray(targetData)) {
+                tableRows = targetData;
+                dom.tablePreviewNotice.innerHTML = `
+                    <i data-lucide="info" class="w-3.5 h-3.5 text-indigo-600"></i>
+                    <span>Menampilkan maksimal 10 baris pertama dari data aktif untuk verifikasi cepat.</span>
+                `;
+            } else if (targetData && typeof targetData === 'object') {
+                // Jika data berbentuk objek (misal mode Semua Sheet atau Merged Object), ambil array pertama yang ditemukan
+                const keys = Object.keys(targetData);
+                for (const k of keys) {
+                    const val = targetData[k];
+                    if (Array.isArray(val)) {
+                        tableRows = val;
+                        dom.tablePreviewNotice.innerHTML = `
+                            <i data-lucide="info" class="w-3.5 h-3.5 text-indigo-600"></i>
+                            <span>Menampilkan pratinjau 10 baris pertama dari bagian <strong>"${k}"</strong>.</span>
+                        `;
+                        break;
+                    } else if (val && typeof val === 'object') {
+                        const subKeys = Object.keys(val);
+                        if (subKeys.length > 0 && Array.isArray(val[subKeys[0]])) {
+                            tableRows = val[subKeys[0]];
+                            dom.tablePreviewNotice.innerHTML = `
+                                <i data-lucide="info" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                <span>Menampilkan pratinjau 10 baris pertama dari <strong>"${k} → ${subKeys[0]}"</strong>.</span>
+                            `;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            renderTablePreview(tableRows, useFirstRowAsHeader);
+            lucide.createIcons();
+        }
+
+        // ... existing code (renderTablePreview tetap sama) ...
+
+        /**
+         * Menghapus satu file dari antrean
+         */
+        function removeFileFromQueue(fileId) {
+            appState.files = appState.files.filter(f => f.id !== fileId);
+
+            if (appState.files.length === 0) {
+                resetWorkspace();
+                return;
+            }
+
+            if (appState.selectedFileId === fileId) {
+                appState.selectedFileId = appState.files[0].id;
+            }
+
+            renderQueueList();
+            updateActivePreview();
+        }
+
+        /**
+         * Mengosongkan seluruh antrean dan kembali ke tampilan awal
+         */
+        function resetWorkspace() {
+            appState.files = [];
+            appState.selectedFileId = null;
+            appState.activeJsonString = '';
+            dom.fileInput.value = '';
+            dom.batchModeSelect.value = 'individual';
+            hideAlert();
+
+            dom.workspaceSection.classList.add('hidden');
+            dom.uploadSection.classList.remove('hidden');
+        }
+
+        /**
+         * Memuat 2 contoh file Excel simulasi agar pengguna bisa langsung menguji mode Batch
+         */
+        function loadSampleData() {
+            // File Contoh 1: data_karyawan.xlsx
+            const karyawanRows = [
+                { NIK: "EMP-101", Nama_Lengkap: "Budi Santoso", Departemen: "Engineering", Jabatan: "Senior Frontend Dev", Aktif: true },
+                { NIK: "EMP-102", Nama_Lengkap: "Siti Rahmawati", Departemen: "Product", Jabatan: "Product Manager", Aktif: true },
+                { NIK: "EMP-103", Nama_Lengkap: "Andi Wijaya", Departemen: "Design", Jabatan: "UI/UX Lead", Aktif: true },
+                { NIK: "EMP-104", Nama_Lengkap: "Dewi Lestari", Departemen: "Operations", Jabatan: "Data Analyst", Aktif: false }
+            ];
+            const wb1 = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb1, XLSX.utils.json_to_sheet(karyawanRows), "Data_Karyawan");
+
+            // File Contoh 2: laporan_penjualan.xlsx (Multi-sheet)
+            const penjualanQ3 = [
+                { ID_Order: "ORD-881", Produk: "Laptop Ultrabook Pro 14", Qty: 3, Total_IDR: 43500000 },
+                { ID_Order: "ORD-882", Produk: "Monitor IPS 27 Inch", Qty: 5, Total_IDR: 21000000 },
+                { ID_Order: "ORD-883", Produk: "Mechanical Keyboard", Qty: 10, Total_IDR: 8500000 }
+            ];
+            const penjualanQ4 = [
+                { ID_Order: "ORD-901", Produk: "USB-C Docking Station", Qty: 12, Total_IDR: 7800000 },
+                { ID_Order: "ORD-902", Produk: "Ergonomic Chair", Qty: 4, Total_IDR: 9400000 }
+            ];
+            const wb2 = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb2, XLSX.utils.json_to_sheet(penjualanQ3), "Kuartal_3");
+            XLSX.utils.book_append_sheet(wb2, XLSX.utils.json_to_sheet(penjualanQ4), "Kuartal_4");
+
+            const file1 = {
+                id: generateId(),
+                fileName: "data_karyawan.xlsx",
+                fileSize: 15360,
+                workbook: wb1,
+                selectedSheet: "Data_Karyawan",
+                status: 'ready',
+                errorMessage: '',
+                convertedData: null,
+                jsonString: '',
+                rowCount: 0
+            };
+
+            const file2 = {
+                id: generateId(),
+                fileName: "laporan_penjualan.xlsx",
+                fileSize: 22528,
+                workbook: wb2,
+                selectedSheet: "Kuartal_3",
+                status: 'ready',
+                errorMessage: '',
+                convertedData: null,
+                jsonString: '',
+                rowCount: 0
+            };
+
+            appState.files = [file1, file2];
+            appState.selectedFileId = file1.id;
+
+            dom.uploadSection.classList.add('hidden');
+            dom.workspaceSection.classList.remove('hidden');
+
+            reprocessAllFiles();
+        }
+
+        // --- Download & Export Functions ---
+
+        function triggerBlobDownload(contentString, fileName, mimeType = 'application/json;charset=utf-8') {
+            const blob = new Blob([contentString], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadSingleFileItem(fileItem) {
+            if (!fileItem || fileItem.status !== 'ready') return;
+            const outName = getCleanOutputFileName(fileItem);
+            triggerBlobDownload(fileItem.jsonString, outName);
+        }
+
+        function downloadMergedBatch() {
+            const readyFiles = appState.files.filter(f => f.status === 'ready');
+            if (readyFiles.length === 0) {
+                showAlert('Tidak Ada Data', 'Tidak ada file valid yang siap untuk digabungkan.', 'warning');
+                return;
+            }
+
+            const currentMode = dom.batchModeSelect.value === 'merged_array' ? 'merged_array' : 'merged_object';
+            const mergedData = buildMergedBatchData(currentMode);
+            const isPretty = dom.optPretty.checked;
+            const jsonStr = isPretty ? JSON.stringify(mergedData, null, 2) : JSON.stringify(mergedData);
+
+            triggerBlobDownload(jsonStr, 'batch_merged_output.json');
+        }
+
+        async function downloadAllAsZip() {
+            const readyFiles = appState.files.filter(f => f.status === 'ready');
+            if (readyFiles.length === 0) {
+                showAlert('Tidak Ada File Siap', 'Tambahkan minimal satu file Excel yang valid untuk diunduh sebagai ZIP.', 'warning');
+                return;
+            }
+
+            if (typeof JSZip === 'undefined') {
+                showAlert('Library ZIP Belum Siap', 'Gagal memuat JSZip. Periksa koneksi internet Anda lalu muat ulang halaman.', 'error');
+                return;
+            }
+
+            const originalBtnHtml = dom.downloadZipBtn.innerHTML;
+            dom.downloadZipBtn.disabled = true;
+            dom.downloadZipBtn.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Mengemas ZIP...</span>`;
+            lucide.createIcons();
+
+            try {
+                const zip = new JSZip();
+                const usedNames = new Set();
+
+                readyFiles.forEach(fileItem => {
+                    let outName = getCleanOutputFileName(fileItem);
+                    // Pastikan nama file di dalam ZIP unik jika ada duplikat nama
+                    if (usedNames.has(outName)) {
+                        const base = outName.replace(/\.json$/, '');
+                        let idx = 2;
+                        while (usedNames.has(`${base}_${idx}.json`)) idx++;
+                        outName = `${base}_${idx}.json`;
+                    }
+                    usedNames.add(outName);
+                    zip.file(outName, fileItem.jsonString);
+                });
+
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(zipBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `konversi_excel_json_${readyFiles.length}_file.zip`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error('ZIP Error:', err);
+                showAlert('Gagal Membuat ZIP', 'Terjadi kesalahan saat mengemas file JSON ke arsip ZIP.', 'error');
+            } finally {
+                dom.downloadZipBtn.disabled = false;
+                dom.downloadZipBtn.innerHTML = originalBtnHtml;
+                lucide.createIcons();
+            }
+        }
+
+        // --- Event Listeners ---
+
+        // Klik Dropzone & Tombol Tambah File -> Buka File Picker Multi-File
+        dom.dropZone.addEventListener('click', () => dom.fileInput.click());
+        dom.addMoreBtn.addEventListener('click', () => dom.fileInput.click());
+
+        // Perubahan Input File (Mendukung Multiple Files)
+        dom.fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                handleMultipleFiles(e.target.files);
+                e.target.value = ''; // Reset agar file yang sama bisa dipilih ulang jika dihapus
+            }
+        });
+
+        // Drag & Drop Events pada Upload Section & Queue Workspace
+        [dom.dropZone, dom.queueDropZone].forEach(zone => {
+            ['dragenter', 'dragover'].forEach(eventName => {
+                zone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    zone.classList.add('dropzone-active');
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                zone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    zone.classList.remove('dropzone-active');
+                });
+            });
+
+            zone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files && files.length > 0) {
+                    handleMultipleFiles(files);
+                }
+            });
+        });
+
+        // Muat Data Contoh (2 File)
+        dom.loadSampleBtn.addEventListener('click', loadSampleData);
+
+        // Hapus Semua File
+        dom.clearAllBtn.addEventListener('click', resetWorkspace);
+
+        // Perubahan Opsi Parsing Global
+        [dom.optHeader, dom.optPretty, dom.optEmptyCells].forEach(toggle => {
+            toggle.addEventListener('change', reprocessAllFiles);
+        });
+
+        // Perubahan Mode Output Batch
+        dom.batchModeSelect.addEventListener('change', updateActivePreview);
+
+        // Navigasi Tab (Output JSON vs Pratinjau Tabel)
+        dom.tabJson.addEventListener('click', () => {
+            appState.activeTab = 'json';
+            dom.tabJson.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-sm transition-all';
+            dom.tabTable.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition-all';
+            
+            dom.jsonViewContainer.classList.remove('hidden');
+            dom.tableViewContainer.classList.add('hidden');
+        });
+
+        dom.tabTable.addEventListener('click', () => {
+            appState.activeTab = 'table';
+            dom.tabTable.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-sm transition-all';
+            dom.tabJson.className = 'inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 transition-all';
+            
+            dom.tableViewContainer.classList.remove('hidden');
+            dom.jsonViewContainer.classList.add('hidden');
+        });
+
+        // Salin JSON Aktif ke Clipboard (kompatibel iFrame)
+        dom.copyBtn.addEventListener('click', () => {
+            if (!appState.activeJsonString) return;
+
+            const textarea = document.createElement('textarea');
+            textarea.value = appState.activeJsonString;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+
+            try {
+                document.execCommand('copy');
+                
+                dom.copyBtn.classList.add('border-emerald-300', 'bg-emerald-50', 'text-emerald-700');
+                dom.copyIcon.setAttribute('data-lucide', 'check');
+                dom.copyIcon.classList.remove('text-slate-500');
+                dom.copyIcon.classList.add('text-emerald-600');
+                dom.copyText.textContent = 'Tersalin!';
+                lucide.createIcons();
+
+                setTimeout(() => {
+                    dom.copyBtn.classList.remove('border-emerald-300', 'bg-emerald-50', 'text-emerald-700');
+                    dom.copyIcon.setAttribute('data-lucide', 'copy');
+                    dom.copyIcon.classList.remove('text-emerald-600');
+                    dom.copyIcon.classList.add('text-slate-500');
+                    dom.copyText.textContent = 'Salin JSON';
+                    lucide.createIcons();
+                }, 2000);
+            } catch (err) {
+                showAlert('Gagal Menyalin', 'Browser memblokir akses clipboard otomatis. Silakan salin manual dari kotak kode.', 'error');
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        });
+
+        // Tombol Unduh Sesuai Konteks Pratinjau Aktif
+        dom.downloadSingleBtn.addEventListener('click', () => {
+            const mode = dom.batchModeSelect.value;
+            if (mode === 'individual') {
+                const activeItem = appState.files.find(f => f.id === appState.selectedFileId);
+                if (activeItem) downloadSingleFileItem(activeItem);
+            } else {
+                downloadMergedBatch();
+            }
+        });
+
+        // Tombol Unduh Gabungan & Unduh Semua (.ZIP)
+        dom.downloadMergedBtn.addEventListener('click', downloadMergedBatch);
+        dom.downloadZipBtn.addEventListener('click', downloadAllAsZip);
+    </script>
+</body>
+</html>
